@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>2330 TSMC Global Fab Footprint</title>
+<style>
+:root{
+  --bg:#F4F6F8; --surface:#FFFFFF; --ink:#1C2430; --muted:#5B6472; --line:#DDE3EA;
+  --accent:#14558F; --accent-soft:#E3EDF6;
+  --ok:#1D7A4F; --warn:#B77300; --crit:#B3372B;
+  --land:#C2D6E8;
+  --mono:"Cascadia Mono",Consolas,ui-monospace,monospace;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.55 "Segoe UI",system-ui,sans-serif}
+.wrap{max-width:1060px;margin:0 auto;padding:20px 20px 48px}
+header{display:flex;flex-wrap:wrap;align-items:baseline;gap:10px 16px;margin-bottom:18px}
+h1{font-size:22px;margin:0;letter-spacing:.01em}
+h1 .code{font-family:var(--mono);color:var(--accent)}
+.asof{font-size:12px;color:var(--muted)}
+.asof b{color:var(--ink);font-weight:600}
+h2{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 10px;font-weight:600}
+.grid{display:grid;gap:14px}
+.kpis{grid-template-columns:repeat(auto-fit,minmax(210px,1fr));margin-bottom:14px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:14px 16px}
+.kpi .lbl{font-size:12px;color:var(--muted)}
+.kpi .val{font-size:26px;font-weight:650;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.kpi .val small{font-size:13px;font-weight:500;color:var(--muted)}
+.kpi .sub{font-size:12px;color:var(--muted)}
+section{margin-top:14px}
+.note{font-size:11.5px;color:var(--muted);margin-top:10px;line-height:1.5}
+
+/* ===== map ===== */
+.map-wrap{position:relative}
+.map-svg{width:100%;height:auto;display:block}
+.land{fill:var(--land)}
+.yearbadge{position:absolute;top:6px;right:12px;font-size:46px;font-weight:750;color:var(--accent);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.yearbadge small{display:block;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;text-align:right}
+.site{transition:r .6s ease, fill .6s ease, opacity .6s ease}
+.site.prod{fill:var(--accent)}
+.site.con{fill:var(--warn)}
+.site.plan{fill:none;stroke:var(--muted);stroke-width:1.5;stroke-dasharray:2 2}
+.site.off{opacity:0;r:0}
+.halo{fill:var(--accent);opacity:.18;transition:r .6s ease, opacity .6s ease}
+.halo.off{opacity:0}
+.ring{fill:none;stroke:var(--warn);stroke-width:1.6;opacity:.85;transform-origin:center}
+.ring.off{opacity:0}
+@keyframes pulse{0%{stroke-opacity:.9}50%{stroke-opacity:.25}100%{stroke-opacity:.9}}
+.ring{animation:pulse 1.6s ease-in-out infinite}
+.slabel{font-size:11px;fill:var(--ink);font-weight:600}
+.slabel.mut{fill:var(--muted);font-weight:500}
+.newflag{font-size:10px;font-weight:700;fill:var(--crit);text-transform:uppercase;letter-spacing:.05em;opacity:0;transition:opacity .5s ease}
+.newflag.on{opacity:1}
+
+/* capacity tooltip */
+.map-tip{position:absolute;pointer-events:none;background:var(--surface);border:1px solid var(--line);
+  border-radius:6px;padding:8px 11px;font-size:11.5px;box-shadow:0 4px 14px rgba(0,0,0,.12);
+  opacity:0;transition:opacity .12s;transform:translate(-50%,-100%);white-space:nowrap;z-index:3;line-height:1.5}
+.map-tip.on{opacity:1}
+.map-tip .tt-name{font-weight:700;font-size:12.5px;color:var(--ink);margin-bottom:2px}
+.map-tip .src{color:var(--muted);font-size:10.5px}
+.site,.inset .site{cursor:pointer;pointer-events:auto}
+
+/* Taiwan inset */
+.inset{position:absolute;left:12px;bottom:12px;width:200px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px 10px 6px;box-shadow:0 3px 12px rgba(20,40,70,.08)}
+.inset h3{margin:0 0 4px;font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:600}
+.inset svg{width:100%;height:auto;display:block}
+.ilabel{font-size:10.5px;fill:var(--ink)}
+.ilabel.mut{fill:var(--muted)}
+
+/* timeline */
+.tl{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:12px}
+.pill{border:1px solid var(--line);background:var(--surface);color:var(--muted);border-radius:16px;padding:5px 14px;font-size:13px;font-weight:600;cursor:pointer;font-variant-numeric:tabular-nums}
+.pill.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.pill.flag{position:relative}
+.pill.flag::after{content:attr(data-flag);position:absolute;top:-15px;left:50%;transform:translateX(-50%);font-size:9px;color:var(--crit);font-weight:700;white-space:nowrap}
+.playbtn{margin-left:auto;border:none;background:var(--accent);color:#fff;border-radius:16px;padding:6px 16px;font-size:13px;font-weight:600;cursor:pointer}
+.legend{display:flex;gap:16px;font-size:11.5px;color:var(--muted);margin-top:10px;flex-wrap:wrap}
+.legend i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;vertical-align:-1px}
+.legend .l1 i{background:var(--accent)}
+.legend .l2 i{background:var(--warn)}
+.legend .l3 i{background:none;border:1.5px dashed var(--muted)}
+
+/* narrative + anchors */
+.two{display:grid;grid-template-columns:1.15fr 1fr;gap:14px;align-items:stretch}
+@media(max-width:760px){.two{grid-template-columns:1fr}}
+.story .head{font-size:16px;font-weight:700;margin-bottom:6px}
+.story ul{margin:6px 0 0 18px;padding:0}
+.story li{margin:4px 0;font-size:13px}
+.story .tag{font-family:var(--mono);font-size:10.5px;background:var(--accent-soft);color:var(--accent);border-radius:4px;padding:1px 6px;margin-right:6px;white-space:nowrap}
+.story .est{color:var(--muted);font-size:11.5px;margin-top:8px}
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+td,th{padding:6px 8px;text-align:left;font-size:12.5px;border-top:1px solid var(--line);vertical-align:top}
+th{border-top:none;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600}
+.d{font-family:var(--mono);font-size:11px;color:var(--muted);white-space:nowrap}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1><span class="code">2330</span> TSMC Global Fab Footprint <span style="color:var(--muted);font-weight:500">2024 &rarr; 2030</span></h1>
+  <span class="asof">Sources: <b>MOPS filings</b> + TSMC press &amp; media reports | Dates from 2027 onward are <b>company targets</b></span>
+</header>
+
+<div class="grid kpis">
+  <div class="card kpi">
+    <div class="lbl">Announced U.S. investment (cumulative)</div>
+    <div class="val">$<span id="kInvest">65</span><small> billion</small></div>
+    <div class="sub" id="kInvestSub">3 fabs committed</div>
+  </div>
+  <div class="card kpi">
+    <div class="lbl">Fabs in volume production (tracked)</div>
+    <div class="val"><span id="kProd">8</span><small> / 15</small></div>
+    <div class="sub">incl. Taiwan, US, Japan, China</div>
+  </div>
+  <div class="card kpi">
+    <div class="lbl">Under construction</div>
+    <div class="val"><span id="kCon">4</span><small> sites</small></div>
+    <div class="sub" id="kConSub">&nbsp;</div>
+  </div>
+</div>
+
+<section>
+  <div class="card">
+    <h2>Global footprint &mdash; fabs light up by year</h2>
+    <div class="map-wrap">
+      <div class="yearbadge"><small>Year</small><span id="yearNum">2024</span></div>
+      <svg class="map-svg" viewBox="0 0 1008 430" id="worldMap"></svg>
+      <div class="inset">
+        <h3>Taiwan (per-fab detail)</h3>
+        <svg viewBox="0 0 180 150" id="twInset"></svg>
+      </div>
+      <div class="map-tip" id="mapTip"></div>
+    </div>
+    <div class="tl" id="tlBar"></div>
+    <div class="legend">
+      <span class="l1"><i></i>In production</span>
+      <span class="l2"><i></i>Under construction</span>
+      <span class="l3"><i></i>Announced / planned</span>
+      <span>&#9679; dot size = fabs in production at site</span>
+      <span>&#9702; hover a dot for capacity (sourced)</span>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="two">
+    <div class="card story">
+      <h2>What changes this year</h2>
+      <div class="head" id="stHead"></div>
+      <ul id="stList"></ul>
+      <div class="est" id="stEst"></div>
+    </div>
+    <div class="card">
+      <h2>MOPS filing anchors (from the 1,254-filing database)</h2>
+      <table>
+        <tr><th>Date</th><th>Clause</th><th>Filing</th></tr>
+        <tr><td class="d">115/07/16</td><td class="d">&mdash;</td><td>Q2 investor conference: additional US$100B &rarr; <b>US$265B</b> total <span style="color:var(--muted)">(announced at the conference, not a filing &mdash; same-day filing was Q2 EPS)</span></td></tr>
+        <tr><td class="d">115/05/12</td><td class="d">M20+M11</td><td>Parent approves further Arizona capital increase</td></tr>
+        <tr><td class="d">115/01/08</td><td class="d">M20</td><td>TSMC Arizona acquires real estate</td></tr>
+        <tr><td class="d">114/05/14</td><td class="d">M11</td><td>TSMC Arizona board approves capital increase</td></tr>
+        <tr><td class="d">114/03/04</td><td class="d">M51</td><td>Intent to raise U.S. investment to <b>US$165B</b></td></tr>
+      </table>
+      <div class="note">Filing dates use ROC calendar (114 = 2025). Clause codes: M11 corporate bonds/capital, M20 asset acquisition, M51 other material items.</div>
+    </div>
+  </div>
+</section>
+
+<div class="note" style="margin-top:16px">Land grid derived from public-domain world GeoJSON. Fab status per year compiled from MOPS material-information filings (110/01&ndash;115/07 database), TSMC press releases, and media reports (Tom's Hardware, TrendForce, CNA, DIGITIMES). Future-dated milestones (2027+) are company targets and may change. This page is an independent visualization, not affiliated with TSMC.</div>
+</div>
+
+<script>
+(function(){
+var LAND='3:0,1,2,3,4,5,6,120,121,122,123,124,125,126,127,128,131,132,133,134,135,136,137,138,139,140,141,142,143;4:0,1,2,3,17,18,19,52,53,111,114,115,118,119,120,121,122,123,124,125,128,129,130,131,132,133,134,135,136,137,138,139,140,141,142,143;5:0,1,2,3,36,37,38,51,52,53,54,55,56,107,110,112,115,116,119,128,129,130,131,132,133,134,135,136,137,138,139,140,141,142,143;6:0,1,2,3,33,34,45,46,47,48,49,50,51,52,53,54,55,56,68,106,107,108,109,118,119,121,134,135,136,137,138,139,140,141,142,143;7:0,1,2,33,34,39,40,41,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,65,66,67,68,69,70,71,72,84,93,107,109,110,111,112,113,117,118,120,121,122,123,124,125,126,135,136,137,138,139,140,141,142,143;8:0,19,20,21,22,23,24,25,26,33,35,36,37,38,40,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,89,90,91,92,93,94,95,96,97,98,99,100,101,102,103,104,105,106,107,108,109,111,113,118,119,120,122,123,126,127,128,135,136,137,138,139,140,141,142,143;9:5,17,18,19,20,21,22,23,24,25,27,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,90,91,92,93,94,95,96,97,98,99,100,101,102,103,104,105,106,107,108,109,110,111,112,113,114,115,116,117,118,119,120,121,126,127,128,129,130,135,136,137,138,139,140,141;10:4,16,17,18,19,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,92,93,94,95,96,97,98,99,100,101,102,103,104,105,106,107,108,109,110,111,112,113,114,115,116,117,118,119,121,123,127,128,129,135,136,137,138,139;11:14,15,16,17,18,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,76,77,78,79,80,90,91,92,93,94,95,96,97,98,99,100,101,102,103,104,105,106,107,108,109,110,111,112,113,114,115,116,117,125,126,136,137,138;12:14,15,16,17,18,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,76,91,92,93,94,101,102,103,104,105,106,107,108,109,110,111,112,113,114,115,116,117,118,125,126,127,128,130;13:10,15,17,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,74,75,76,92,103,104,105,106,107,108,109,110,111,112,113,114,115,116,117,118,119,120,125,126,127,128,129,130;14:8,9,11,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,74,75,104,105,106,107,108,109,110,111,112,113,114,115,116,117,118,119,120,121,122,124,125,126,127,128,129,130,131,132;15:10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,105,106,107,108,109,110,111,112,113,114,115,116,117,118,119,120,121,122,123,124,125,126,127,128,129,130,131,132,133;16:10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,106,107,108,109,110,111,112,113,114,115,116,117,118,119,120,121,122,123,124,125,126,127,129,132,133,134;17:11,12,13,14,15,16,17,18,19,20,21,22,23,25,27,28,29,30,31,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,106,107,108,109,110,111,112,113,114,115,116,117,118,119,120,121,122,123,124,125,126,127,128,129;18:11,12,13,14,16,18,19,20,21,22,28,29,30,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,69,106,107,108,109,110,111,112,113,114,115,116,117,118,119,120,121,122,123,124,125,126,127;19:8,9,10,11,12,17,18,20,21,22,23,25,26,28,29,30,31,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,68,106,107,108,109,110,111,112,113,114,115,116,117,118,119,120,121,122,123,124,125,126;20:8,9,10,11,18,20,23,24,25,26,27,28,29,30,31,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,62,68,107,108,109,110,111,112,113,114,115,116,117,118,119,120,121,122,123,124,125;21:12,13,14,15,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,63,66,67,107,108,109,110,111,112,113,114,115,116,117,118,119,120,121,122,123,124,125;22:9,10,11,12,13,14,15,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,65,109,110,111,112,113,114,115,116,117,118,119,120,121,122,123,124;23:8,9,10,11,12,13,14,15,16,17,18,20,21,22,24,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,109,111,112,113,114,115,116,117,118,119,120,121,122;24:8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,110,111,112,113,114,115,116,117,123;25:6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,27,28,29,30,31,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,112,113,114,115,116,123;26:6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,27,28,29,30,31,32,33,34,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,60,113,114,115,116;27:5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,28,29,30,31,32,33,34,35,40,41,42,43,44,45,46,49,50,51,52,53,54,114,115,116,120;28:6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,28,29,30,31,32,33,34,41,42,43,44,45,50,51,52,53,55,114,115,116,117,119,120,127,128;29:5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,29,30,31,32,41,42,43,44,51,52,53,54,60,117,118,119,120;30:5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,42,43,51,52,53,54,55,60,61,120,121,122;31:6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,31,42,43,51,53,54,126,128;32:7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,51,62,123,125,126,127,128,129,130,131;33:8,9,10,11,12,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,44,52,125,126,127,128,129,130,131,132;34:16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,51,52,57,58,125,126,127,128,129,130,131,132,133,134,135;35:16,17,18,19,20,21,22,23,24,25,26,27,28,29,52,53,56,57,58,124,125,126,127,128,129,130,131,132,133,134,135;36:16,17,18,19,20,21,22,23,24,25,26,27,28,52,53,56,57,58,60,64,65,124,125,126,127,128,129,130,131,132,133,134,135,136,137;37:16,17,18,19,20,21,22,23,24,25,26,27,53,60,66,67,68,69,124,125,126,127,128,129,130,131,132,133,134,135,136,137,138,139,140;38:17,18,19,20,21,22,23,24,25,26,27,54,67,68,69,70,124,125,126,127,128,129,130,131,132,133,134,135,136,137,138,139,140,141;39:17,18,19,20,21,22,23,24,25,26,27,59,60,62,68,124,125,126,127,128,129,130,131,132,133,134,135,136,137,138,139,140,141;40:17,18,19,20,21,22,23,24,25,26,27,125,126,127,128,129,130,131,132,133,134,135,136,137,138,139,140;41:17,18,19,20,21,22,23,24,25,26,27,31,64,65,125,126,127,128,129,130,131,132,133,134,135,136,137,138,139;42:17,18,19,20,21,22,23,24,25,26,27,30,31,61,62,63,64,65,66,69,127,128,129,130,131,132,133,134,135,136,137,138,139;43:17,18,19,20,21,22,23,24,25,30,31,61,62,63,64,65,66,67,68,69,70,128,129,130,131,132,133,134,135,136,137,138,139;44:17,18,19,20,21,22,23,24,25,29,30,58,59,60,61,62,63,64,65,66,67,68,69,70,71,128,129,130,131,132,133,134,135,136,137,138,139;45:18,19,20,21,22,23,24,25,29,30,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,128,129,130,131,132,133,134,135,136,137;46:18,19,20,21,22,23,24,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,128,129,130,131,132,133,134,135,136;47:19,20,21,22,23,24,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,127,128,129,130,131,132,133,134,135;48:19,20,21,22,23,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,127,128,129,130,131,132,133,134,135;49:19,20,21,58,59,60,61,66,67,68,69,70,71,72,127,128,129,130,131,132,133,134;50:68,69,70,71,127,128,129,130,131,132;51:70,82,127,128,129,130,131;52:70,81,126,127,128,129;53:80,127,128,129;54:79,126,127,128;55:126,127,128;56:126,127,132;57:127,128';
+var YEARS=[2024,2025,2026,2027,2028,2030];
+var CX=150, W=1008, CELL=7;
+
+function proj(lat,lon){
+  var ls=((lon-CX+540)%360)-180;
+  return { x:(ls+180)/360*W, y:(90-lat)/180*(72*CELL) };
+}
+
+/* units: y states p=production c=construction x=planned -=absent */
+var UNITS=[
+ {s:'hsinchu',  f:'Fab 12+', y:{2024:'p',2025:'p',2026:'p',2027:'p',2028:'p',2030:'p'}},
+ {s:'baoshan',  f:'Fab 20 (2nm)', y:{2024:'c',2025:'p',2026:'p',2027:'p',2028:'p',2030:'p'}},
+ {s:'taichung', f:'Fab 15', y:{2024:'p',2025:'p',2026:'p',2027:'p',2028:'p',2030:'p'}},
+ {s:'taichung', f:'Fab 25 (A14)', y:{2024:'-',2025:'c',2026:'c',2027:'c',2028:'p',2030:'p'}},
+ {s:'tainan',   f:'Fab 14/18 (5/3nm)', y:{2024:'p',2025:'p',2026:'p',2027:'p',2028:'p',2030:'p'}},
+ {s:'kaohsiung',f:'Fab 22 (2nm)', y:{2024:'c',2025:'p',2026:'p',2027:'p',2028:'p',2030:'p'}},
+ {s:'phoenix',  f:'Fab 21 P1 (4nm)', y:{2024:'p',2025:'p',2026:'p',2027:'p',2028:'p',2030:'p'}},
+ {s:'phoenix',  f:'Fab 21 P2 (3nm)', y:{2024:'c',2025:'c',2026:'c',2027:'p',2028:'p',2030:'p'}},
+ {s:'phoenix',  f:'Fab 21 P3 (2nm/A16)', y:{2024:'-',2025:'c',2026:'c',2027:'c',2028:'c',2030:'p'}},
+ {s:'phoenix',  f:'Adv. packaging &times;2 + R&D', y:{2024:'-',2025:'x',2026:'x',2027:'c',2028:'c',2030:'c'}},
+ {s:'camas',    f:'WaferTech Fab 11', y:{2024:'p',2025:'p',2026:'p',2027:'p',2028:'p',2030:'p'}},
+ {s:'kumamoto', f:'JASM Fab 1', y:{2024:'p',2025:'p',2026:'p',2027:'p',2028:'p',2030:'p'}},
+ {s:'kumamoto', f:'JASM Fab 2 (6nm)', y:{2024:'-',2025:'c',2026:'c',2027:'p',2028:'p',2030:'p'}},
+ {s:'dresden',  f:'ESMC', y:{2024:'c',2025:'c',2026:'c',2027:'p',2028:'p',2030:'p'}},
+ {s:'nanjing',  f:'Fab 16', y:{2024:'p',2025:'p',2026:'p',2027:'p',2028:'p',2030:'p'}},
+ {s:'shanghai', f:'Fab 10', y:{2024:'p',2025:'p',2026:'p',2027:'p',2028:'p',2030:'p'}}
+];
+var SITES={
+ hsinchu:{n:'Hsinchu',lat:24.77,lon:121.01,tw:1,ix:118,iy:22},
+ baoshan:{n:'Baoshan',lat:24.74,lon:120.97,tw:1,ix:96,iy:34},
+ taichung:{n:'Taichung',lat:24.21,lon:120.62,tw:1,ix:74,iy:62},
+ tainan:{n:'Tainan',lat:23.10,lon:120.27,tw:1,ix:52,iy:104},
+ kaohsiung:{n:'Kaohsiung',lat:22.68,lon:120.27,tw:1,ix:44,iy:126},
+ phoenix:{n:'Phoenix AZ',lat:33.67,lon:-112.13,lx:8,ly:-10},
+ camas:{n:'Camas WA',lat:45.59,lon:-122.41,lx:8,ly:-8},
+ kumamoto:{n:'Kumamoto',lat:32.89,lon:130.87,lx:8,ly:-8},
+ dresden:{n:'Dresden',lat:51.05,lon:13.74,lx:8,ly:-8},
+ nanjing:{n:'Nanjing',lat:31.94,lon:118.71,lx:-8,ly:-10,anchor:'end'},
+ shanghai:{n:'Shanghai',lat:31.05,lon:121.5,lx:10,ly:8},
+ taiwan:{n:'Taiwan',lat:23.7,lon:121.0,lx:10,ly:16,cluster:1}
+};
+var STORY={
+ 2024:{h:'Three overseas lights in one year',
+  li:[['','JASM Kumamoto Fab 1 opens (Feb), volume production (Dec)'],
+      ['','Arizona Fab 21 P1 (4nm) enters volume production Q4 — yields on par with Taiwan'],
+      ['','ESMC Dresden breaks ground (Aug)'],
+      ['','Taiwan: Baoshan Fab 20 & Kaohsiung Fab 22 (both 2nm) under construction']],
+  est:''},
+ 2025:{h:'2nm lights up in Taiwan; five sites building at once',
+  li:[['M51 114/03/04','U.S. investment raised to US$165B'],
+      ['','2nm volume production begins: Baoshan Fab 20 + Kaohsiung Fab 22 (Q4)'],
+      ['','Arizona P3 breaks ground (Apr); Kumamoto Fab 2 starts construction (Oct); Taichung Fab 25 starts (Dec)'],
+      ['M11 114/05/14','TSMC Arizona capital increase']],
+  est:''},
+ 2026:{h:'Tooling year — and the number jumps to $265B',
+  li:[['M20 115/01/08','TSMC Arizona acquires real estate'],
+      ['','Arizona P2 completes construction (Apr), equipment install Q3'],
+      ['','Dresden ESMC equipment move-in 2H'],
+      ['115/07/16','Investor conference: +US$100B → US$265B total (10 fabs, 2 packaging, R&D)']],
+  est:''},
+ 2027:{h:'Overseas triple ignition',
+  li:[['','Arizona P2 (3nm) volume production — pulled in a year'],
+      ['','JASM Kumamoto Fab 2 (6nm) production by year-end'],
+      ['','ESMC Dresden production by year-end'],
+      ['','2nm family capacity ramps past 100k wafers/month']],
+  est:'2027+ milestones are company targets'},
+ 2028:{h:'Taiwan deepens the advanced edge',
+  li:[['','Taichung Fab 25 (A14) volume production'],
+      ['','Kaohsiung Fab 22 reaches full six-phase build-out (~145–150k wpm)'],
+      ['','2nm-family total capacity ≈ 200k wafers/month']],
+  est:'Company targets'},
+ 2030:{h:'The $265B blueprint takes shape',
+  li:[['','Arizona P3 (2nm/A16) reaches production — end of decade'],
+      ['','Arizona blueprint: 10 fabs + 2 advanced packaging + R&D center'],
+      ['','Packaging pace “set by market demand” (company statement)']],
+  est:'Company targets; packaging timeline undefined'}
+};
+var INVEST={2024:[65,'3 fabs committed'],2025:[165,'M51 filing 114/03/04'],2026:[265,'announced 2026/07/16'],2027:[265,'10 fabs + 2 pkg + R&D'],2028:[265,'10 fabs + 2 pkg + R&D'],2030:[265,'10 fabs + 2 pkg + R&D']};
+
+/* capacity per site — sourced only; wpm = wafers/month, 12-inch equivalent.
+   [Annual Report] = TSMC 2025 annual report  [TSMC PR] = official press release
+   [media est.] = media compilation  [target] = company target */
+var CAP={
+ taiwan:  ['5 sites &mdash; per-fab detail in inset','GigaFabs combined: &gt;13M wafers/yr <span class="src">[Annual Report 2025]</span>'],
+ hsinchu: ['Fab 12 (GigaFab) &mdash; no public per-fab figure','Company total 2025: &gt;17M wafers/yr <span class="src">[Annual Report]</span>'],
+ baoshan: ['Fab 20 (2nm): ~40&ndash;45k wpm end-2025 <span class="src">[media est.]</span>','~55&ndash;60k wpm by 2027 <span class="src">[media est., target]</span>'],
+ taichung:['Fab 15: ~287k wpm <span class="src">[media est., Q1 2025]</span>','Fab 25 (A14): production target 2028'],
+ tainan:  ['Fab 14: ~338k wpm &middot; Fab 18: ~242k wpm <span class="src">[media est., Q1 2025]</span>'],
+ kaohsiung:['Fab 22 (2nm): ramping from Q4 2025','~145&ndash;150k wpm by end-2028 <span class="src">[media est., target]</span>'],
+ phoenix: ['P1 (4nm): ~25k wpm <span class="src">[media est.]</span>','P2 (3nm) 2027 &middot; P3 (2nm/A16) ~2029&ndash;30 <span class="src">[target]</span>','Blueprint: 10 fabs + 2 packaging + R&amp;D (US$265B)'],
+ camas:   ['WaferTech Fab 11 &mdash; 200mm mature node','No public capacity figure'],
+ kumamoto:['JASM Fab 1+2 combined: &gt;100k wpm <span class="src">[TSMC PR, target]</span>'],
+ dresden: ['ESMC: ~40k wpm <span class="src">[TSMC/ESMC PR, target]</span>'],
+ nanjing: ['Fab 16 (16/28nm) &mdash; no public per-fab figure'],
+ shanghai:['Fab 10 (200mm mature) &mdash; no public per-fab figure']
+};
+var tipEl=null, mapWrap=null;
+function attachTip(target, id){
+  target.addEventListener('pointerenter', function(){
+    if(!tipEl){tipEl=document.getElementById('mapTip');mapWrap=document.querySelector('.map-wrap');}
+    var lines=CAP[id]; if(!lines) return;
+    tipEl.innerHTML='<div class="tt-name">'+SITES[id].n+'</div>'+lines.join('<br>');
+    var r=target.getBoundingClientRect(), w=mapWrap.getBoundingClientRect();
+    tipEl.style.left=(r.left+r.width/2-w.left)+'px';
+    tipEl.style.top=(r.top-w.top-8)+'px';
+    tipEl.classList.add('on');
+  });
+  target.addEventListener('pointerleave', function(){ if(tipEl)tipEl.classList.remove('on'); });
+}
+
+/* ===== render land ===== */
+var svg=document.getElementById('worldMap');
+var NS='http://www.w3.org/2000/svg';
+var frag=document.createDocumentFragment();
+LAND.split(';').forEach(function(row){
+  var p=row.split(':'), gy=+p[0];
+  p[1].split(',').forEach(function(gx){
+    var c=document.createElementNS(NS,'circle');
+    c.setAttribute('cx',(+gx+0.5)*CELL); c.setAttribute('cy',(gy+0.5)*CELL);
+    c.setAttribute('r',2.1); c.setAttribute('class','land');
+    frag.appendChild(c);
+  });
+});
+svg.appendChild(frag);
+
+/* ===== world site dots ===== */
+var worldSites=['taiwan','phoenix','camas','kumamoto','dresden','nanjing','shanghai'];
+var els={};
+worldSites.forEach(function(id){
+  var s=SITES[id], pt=proj(s.lat,s.lon);
+  var halo=document.createElementNS(NS,'circle');
+  halo.setAttribute('cx',pt.x);halo.setAttribute('cy',pt.y);halo.setAttribute('r',0);halo.setAttribute('class','halo off');
+  var ring=document.createElementNS(NS,'circle');
+  ring.setAttribute('cx',pt.x);ring.setAttribute('cy',pt.y);ring.setAttribute('r',9);ring.setAttribute('class','ring off');
+  var dot=document.createElementNS(NS,'circle');
+  dot.setAttribute('cx',pt.x);dot.setAttribute('cy',pt.y);dot.setAttribute('r',0);dot.setAttribute('class','site off');
+  var lb=document.createElementNS(NS,'text');
+  lb.setAttribute('x',pt.x+(s.lx||8));lb.setAttribute('y',pt.y+(s.ly||-8));
+  if(s.anchor)lb.setAttribute('text-anchor',s.anchor);
+  lb.setAttribute('class','slabel mut');lb.textContent=s.n;
+  var nf=document.createElementNS(NS,'text');
+  nf.setAttribute('x',pt.x+(s.lx||8));nf.setAttribute('y',pt.y+(s.ly||-8)-12);
+  if(s.anchor)nf.setAttribute('text-anchor',s.anchor);
+  nf.setAttribute('class','newflag');nf.textContent='NEW';
+  svg.appendChild(halo);svg.appendChild(ring);svg.appendChild(dot);svg.appendChild(lb);svg.appendChild(nf);
+  attachTip(dot,id);
+  els[id]={halo:halo,ring:ring,dot:dot,lb:lb,nf:nf};
+});
+
+/* ===== Taiwan inset ===== */
+var tw=document.getElementById('twInset');
+var twSites=['hsinchu','baoshan','taichung','tainan','kaohsiung'];
+var twEls={};
+twSites.forEach(function(id){
+  var s=SITES[id];
+  var ring=document.createElementNS(NS,'circle');
+  ring.setAttribute('cx',s.ix);ring.setAttribute('cy',s.iy);ring.setAttribute('r',7);ring.setAttribute('class','ring off');
+  var dot=document.createElementNS(NS,'circle');
+  dot.setAttribute('cx',s.ix);dot.setAttribute('cy',s.iy);dot.setAttribute('r',0);dot.setAttribute('class','site off');
+  var lb=document.createElementNS(NS,'text');
+  lb.setAttribute('x',s.ix+10);lb.setAttribute('y',s.iy+4);lb.setAttribute('class','ilabel mut');lb.textContent=s.n;
+  tw.appendChild(ring);tw.appendChild(dot);tw.appendChild(lb);
+  attachTip(dot,id);
+  twEls[id]={ring:ring,dot:dot,lb:lb};
+});
+
+/* ===== timeline ===== */
+var tl=document.getElementById('tlBar'); var pills={};
+YEARS.forEach(function(y){
+  var b=document.createElement('button'); b.className='pill'; b.textContent=y;
+  if(y===2025){b.classList.add('flag');b.setAttribute('data-flag','$165B');}
+  if(y===2026){b.classList.add('flag');b.setAttribute('data-flag','$265B');}
+  b.addEventListener('click',function(){stop();setYear(y);});
+  tl.appendChild(b); pills[y]=b;
+});
+var play=document.createElement('button'); play.className='playbtn'; play.textContent='▶ Play';
+play.addEventListener('click',function(){ if(timer){stop();} else {start();} });
+tl.appendChild(play);
+
+function siteState(id,y){
+  var np=0,nc=0,nx=0;
+  UNITS.forEach(function(u){
+    if(u.s!==id)return; var st=u.y[y];
+    if(st==='p')np++; else if(st==='c')nc++; else if(st==='x')nx++;
+  });
+  return {p:np,c:nc,x:nx};
+}
+function applyDot(el,st,base,prevOn){
+  var on=(st.p+st.c+st.x)>0;
+  if(!on){el.dot.setAttribute('class','site off');el.ring.setAttribute('class','ring off');if(el.halo)el.halo.setAttribute('class','halo off');el.lb&&el.lb.setAttribute('class',el.lb.getAttribute('class').replace(' on','')); if(el.lb)el.lb.classList.add('mut');return false;}
+  var r=st.p>0? base+st.p*1.8 : base;
+  el.dot.setAttribute('r',r);
+  el.dot.setAttribute('class','site '+(st.p>0?'prod':(st.c>0?'con':'plan')));
+  el.ring.setAttribute('r',r+5);
+  el.ring.setAttribute('class','ring'+(st.c>0?'':' off'));
+  if(el.halo){el.halo.setAttribute('r',st.p>0?r+9:0);el.halo.setAttribute('class','halo'+(st.p>0?'':' off'));}
+  if(el.lb)el.lb.classList.toggle('mut',st.p===0);
+  return true;
+}
+var prevOn={};
+function setYear(y){
+  document.getElementById('yearNum').textContent=y;
+  YEARS.forEach(function(k){pills[k].classList.toggle('on',k===y);});
+  var totP=0,totC=0;
+  UNITS.forEach(function(u){ if(u.y[y]==='p')totP++; if(u.y[y]==='c')totC++; });
+  /* world */
+  worldSites.forEach(function(id){
+    var st = (id==='taiwan')
+      ? twSites.reduce(function(a,t){var s2=siteState(t,y);a.p+=s2.p;a.c+=s2.c;a.x+=s2.x;return a;},{p:0,c:0,x:0})
+      : siteState(id,y);
+    var on=applyDot(els[id],st,4.2);
+    var isNew=on&&!prevOn[id];
+    els[id].nf.setAttribute('class','newflag'+(isNew?' on':''));
+    prevOn[id]=on;
+  });
+  /* inset */
+  twSites.forEach(function(id){ applyDot(twEls[id],siteState(id,y),3.4); });
+  /* KPIs */
+  animNum(document.getElementById('kInvest'),INVEST[y][0]);
+  document.getElementById('kInvestSub').textContent=INVEST[y][1];
+  animNum(document.getElementById('kProd'),totP);
+  animNum(document.getElementById('kCon'),totC);
+  document.getElementById('kConSub').textContent=(y<=2026?'building on three continents':'Arizona build-out continues');
+  /* story */
+  var s=STORY[y];
+  document.getElementById('stHead').textContent=s.h;
+  var ul=document.getElementById('stList'); ul.innerHTML='';
+  s.li.forEach(function(it){
+    var li=document.createElement('li');
+    if(it[0]) li.innerHTML='<span class="tag">'+it[0]+'</span>'+it[1]; else li.textContent=it[1];
+    ul.appendChild(li);
+  });
+  document.getElementById('stEst').textContent=s.est?('⚠ '+s.est):'';
+  cur=y;
+}
+function animNum(el,to){
+  var from=parseInt(el.textContent.replace(/,/g,''),10)||0;
+  if(from===to){el.textContent=to;return;}
+  var t0=null;
+  function step(ts){ if(!t0)t0=ts; var k=Math.min((ts-t0)/500,1);
+    el.textContent=Math.round(from+(to-from)*k); if(k<1)requestAnimationFrame(step); }
+  requestAnimationFrame(step);
+}
+var cur=2024, timer=null;
+function start(){
+  play.textContent='❚❚ Pause';
+  var i=YEARS.indexOf(cur);
+  timer=setInterval(function(){
+    i=(i+1)%YEARS.length;
+    setYear(YEARS[i]);
+    if(i===YEARS.length-1 && REC){stop();}
+  },2800);
+}
+function stop(){ if(timer){clearInterval(timer);timer=null;} play.textContent='▶ Play'; }
+
+/* recording mode: ?rec=1 waits for a click, runs one pass, stops */
+var REC=new URLSearchParams(location.search).get('rec')==='1';
+setYear(2024);
+if(REC){
+  document.addEventListener('click',function(){ setYear(2024); setTimeout(start,600); },{once:true});
+}else{
+  setTimeout(start,1200);
+}
+})();
+</script>
+</body>
+</html>
