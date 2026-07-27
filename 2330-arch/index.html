@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>2330 Dashboard — System Architecture &amp; How It Works</title>
+<meta name="description" content="How the self-updating TSMC (2330) monitoring dashboard works: MOPS + TWSE public data, local Python scraper, Google Sheet, Apps Script, Gemini Q&A. Zero cost.">
+<style>
+:root{
+  --bg:#FFFFFF; --ink:#1C2430; --muted:#4A5568; --line:#DDE3EA;
+  --blue:#1F4E79; --blue-soft:#EDF2F8; --blue-border:#B9CCE0;
+  --warn-bg:#FDF3E3; --warn-border:#E0A82E;
+  --mono:"Cascadia Mono",Consolas,ui-monospace,monospace;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#F4F6F8;color:var(--ink);
+  font:15.5px/1.65 "Segoe UI",system-ui,sans-serif}
+.page{max-width:960px;margin:0 auto;padding:28px 18px 60px}
+.sheet{background:var(--bg);border:1px solid var(--line);border-radius:10px;
+  padding:34px 40px 30px;box-shadow:0 1px 4px rgba(28,36,48,.06)}
+
+header.doc{background:var(--blue);color:#fff;border-radius:8px;
+  padding:22px 28px;margin-bottom:26px}
+header.doc h1{margin:0;font-size:26px;letter-spacing:-.01em}
+header.doc .sub{margin:8px 0 0;font-size:14.5px;opacity:.92}
+header.doc .src{margin:4px 0 0;font-size:13px;opacity:.75}
+
+h2{display:flex;align-items:center;gap:10px;font-size:19px;color:var(--blue);
+  margin:30px 0 10px}
+h2::before{content:"";width:5px;height:22px;background:var(--blue);border-radius:2px}
+p{margin:8px 0}
+ul{margin:6px 0 4px;padding-left:22px}
+li{margin:7px 0}
+b,strong{color:var(--ink)}
+code{font-family:var(--mono);font-size:13px;background:var(--blue-soft);
+  border-radius:4px;padding:1px 5px}
+
+.flow{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;
+  gap:8px;margin:16px 0 14px}
+.node{border:1.5px solid var(--blue-border);background:var(--blue-soft);
+  border-radius:8px;padding:8px 16px;text-align:center;min-width:150px}
+.node .t{color:var(--blue);font-weight:600;font-size:14px}
+.node .d{font-size:12.5px;color:var(--muted)}
+.node.plain{background:#F6F8FA;border-color:var(--line)}
+.node.plain .t{color:var(--ink)}
+.arrow{color:var(--ink);font-size:18px;font-weight:700}
+
+.callout{background:var(--warn-bg);border-left:5px solid var(--warn-border);
+  border-radius:6px;padding:12px 16px;margin:16px 0;font-size:14.5px}
+
+footer.doc{margin-top:28px;border-top:1px solid var(--line);padding-top:14px;
+  font-size:13px;color:var(--muted);font-style:italic}
+.back{display:inline-block;margin:16px 0 0;font-size:13.5px;color:var(--blue);
+  text-decoration:none}
+.back:hover{text-decoration:underline}
+@media (max-width:640px){.sheet{padding:22px 18px}}
+</style>
+</head>
+<body>
+<div class="page">
+<div class="sheet">
+
+<header class="doc">
+  <h1>2330 Dashboard — System Architecture &amp; How It Works</h1>
+  <p class="sub">A live monitoring dashboard built entirely on public data · zero cost · Google Apps Script + local Python</p>
+  <p class="src">Sources: MOPS (Market Observation Post System) + TWSE public APIs · Independent, unofficial visualization</p>
+</header>
+
+<h2>1 · Overview</h2>
+<p>Turns TSMC (2330) <b>public data</b> into a web dashboard: recent material-information filings,
+share price and a 12-month average, plus an AI chat you can ask about the filings in plain language.
+Public data only — no confidential data, no self-hosted server.</p>
+
+<h2>2 · Architecture &amp; data flow</h2>
+<div class="flow">
+  <div class="node plain"><div class="t">Public sources</div><div class="d">MOPS filings · TWSE price</div></div>
+  <span class="arrow">→</span>
+  <div class="node"><div class="t">Local Python scraper</div><div class="d">triggered by Windows Task Scheduler</div></div>
+  <span class="arrow">→</span>
+  <div class="node"><div class="t">Google Sheet</div><div class="d">data store / single source</div></div>
+  <span class="arrow">→</span>
+  <div class="node"><div class="t">Apps Script dashboard</div><div class="d">web · reads on load</div></div>
+  <span class="arrow">→</span>
+  <div class="node plain"><div class="t">User's browser</div></div>
+</div>
+<ul>
+  <li><b>Filings:</b> a program pulls from MOPS (per-company, monthly <code>ajax_t05st01</code> — the
+  authoritative feed), parses to a table (date / subject / clause / full description), and writes to a Google Sheet.</li>
+  <li><b>Price:</b> fetched live from TWSE public APIs (STOCK_DAY daily close / FMSRFK monthly average) on each page load.</li>
+  <li><b>AI Q&amp;A:</b> the dashboard connects Google Gemini to answer natural-language questions about the filings (see §4).</li>
+</ul>
+
+<h2>3 · Update mechanism (three roles + read model)</h2>
+<ul>
+  <li><b>Windows Task Scheduler (local — the trigger):</b> runs the scraper every weekday at 08:40.
+  <b>Why local:</b> MOPS is only reachable from a local network (blocked from cloud), so the scraper
+  and its schedule live on the local machine.</li>
+  <li><b>Local Python (the fetcher):</b> scrapes new MOPS filings → appends them to the Sheet → stamps
+  a "verified-through" date (advances even on days with no new filing).</li>
+  <li><b>Apps Script dashboard (the presenter):</b> runs once per page open / refresh, reading the Sheet
+  and TWSE <b>at that moment</b>. No background push, no auto-refresh — reload to update.</li>
+  <li><b>Price frequency:</b> the source is daily trading data, so it changes roughly once per trading day
+  (after settlement), not tick-by-tick intraday. "Live" means the fetch happens on load.</li>
+</ul>
+
+<h2>4 · AI Q&amp;A (Google Gemini)</h2>
+<ul>
+  <li>Apps Script calls the Gemini API <b>server-side</b>; the API key and a passcode are kept in
+  <b>Script Properties</b> (not hard-coded). A passcode gate protects the chat.</li>
+  <li><b>Grounding:</b> the most recent ~40 filings (including the full description) from the Sheet —
+  so "what did this filing say" is answered from the actual scraped MOPS data.</li>
+</ul>
+<div class="callout">
+  <b>Limitation:</b> clause explanations (e.g. M11 = Article 4, item 11 of the TWSE material-information
+  procedures) come from Gemini's general knowledge plus a prompt hint — <b>not an authoritative regulation
+  text</b>. Treat as AI-assisted; defer to the official rules.
+</div>
+
+<h2>5 · Environment &amp; dependencies</h2>
+<ul>
+  <li><b>Local Windows</b> must be on and online for the schedule to run (ingestion depends on the local machine).</li>
+  <li><b>Google account + OAuth token</b> (to write the Sheet); the <b>Apps Script Web App</b> serves a
+  public <code>/exec</code> URL (executes as the owner).</li>
+  <li><b>Gemini free-tier key</b> (Flash model, ~1,500 requests/day).</li>
+  <li><b>Data sensitivity:</b> all public (MOPS/TWSE), no internal data; the passcode blocks random users.</li>
+</ul>
+
+<footer class="doc">
+  Sources: MOPS + TWSE public APIs. An independent visualization built on public data — not an official
+  document and not investment advice.
+</footer>
+
+</div>
+<a class="back" href="../">← Back to portfolio</a>
+</div>
+</body>
+</html>
